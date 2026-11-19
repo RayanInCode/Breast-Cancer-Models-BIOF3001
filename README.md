@@ -1,15 +1,6 @@
 # Breast-Cancer-Models-BIOF3001
 Evaluation of multiple breast cancer prognostic models
 
-The expanded [4_models.ipynb](scripts/4_models.ipynb) now compares four machine
-learning methods against Cox: survival forest, XGBoost AFT, survival SVM and
-DeepHit. DeepHit uses the published two-layer architecture through pycox and
-torchtuples, including censoring-aware training and development-only early
-stopping. Its results, SHAP explanations and reliability checks are saved in
-`results/five_model_comparison/`; the [HTML report](results/five_model_comparison/4_models.html)
-can be read without Python. This extension uses the same previously examined
-holdout and is exploratory.
-
 The executed [survival-model notebook](scripts/gbsg_survival_models.ipynb) follows
 the supplied 13-step prediction workflow. It compares a survival random forest,
 XGBoost AFT and a linear survival SVM with a penalised Cox baseline, using package
