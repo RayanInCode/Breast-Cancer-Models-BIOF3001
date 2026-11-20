@@ -43,3 +43,13 @@ SVM explains its ranking score. Results and plots are saved in
 model choice and are exploratory extensions of the already inspected holdout.
 Read the [reliability conclusions](results/survival_comparison/reliability/reliability_summary.md)
 for the results of these checks.
+
+## Cox versus random survival forest
+
+`scripts/gbsg_cox_rsf.R` compares an unpenalized Cox model with a random survival forest on GBSG2, once with all eight predictors and once with the clinical subset (age, tumour size, nodes, grade, hormonal therapy). The notes, the test-set table, the decision curve, and the SHAP plot are in `results/cox_rsf/`. Run the script from the repository root:
+
+```bash
+Rscript scripts/gbsg_cox_rsf.R
+```
+
+That run writes a new `outputs/` folder in the working directory. The split in `results/cox_rsf/split.csv` is this script's own 80/20 draw of `TH.data::GBSG2`. It is not the patient-id holdout in `results/survival_comparison/patient_split.csv`.
