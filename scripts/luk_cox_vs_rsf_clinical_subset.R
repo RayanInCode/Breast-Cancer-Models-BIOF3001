@@ -9,9 +9,9 @@
 # 3 years for the clinical-subset Cox model, and SHAP values for the
 # full-record forest.
 #
-# Script owner: add your name.
-# Coding assistance was used to draft this file. Paste the prompts in README.md
-# before submission.
+# Script owner: Abigail Luk.
+# Coding assistance was used to draft this file. Paste the prompts in
+# results/luk_cox_vs_rsf_clinical_subset/NOTES.md before submission.
 
 # 3 years, in days. GBSG2 records follow-up in days.
 HORIZON <- 1095
@@ -30,7 +30,17 @@ suppressPackageStartupMessages({
   library(TH.data)
 })
 
-dir.create("outputs", showWarnings = FALSE)
+# Results go next to the group's other result folders, under a name that is
+# not shared with scripts/gbsg_survival_models.ipynb or patient_split.csv.
+cmd_args <- commandArgs(trailingOnly = FALSE)
+file_arg <- grep("^--file=", cmd_args, value = TRUE)
+script_dir <- if (length(file_arg)) {
+  dirname(normalizePath(sub("^--file=", "", file_arg[1])))
+} else {
+  getwd()
+}
+out_dir <- file.path(dirname(script_dir), "results", "luk_cox_vs_rsf_clinical_subset")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 # GBSG2 from TH.data: 686 patients, 299 events.
 # cens = 1 is the event (recurrence or death). cens = 0 is censored.
@@ -85,7 +95,7 @@ write.csv(
     row_id = c(train$row_id, test$row_id),
     sample = rep(c("train", "test"), c(nrow(train), nrow(test)))
   ),
-  "outputs/split.csv",
+  file.path(out_dir, "thdata_row_split.csv"),
   row.names = FALSE
 )
 
@@ -235,7 +245,7 @@ metrics <- data.frame(
   row.names = NULL
 )
 
-write.csv(metrics, "outputs/metrics.csv", row.names = FALSE)
+write.csv(metrics, file.path(out_dir, "test_set_metrics.csv"), row.names = FALSE)
 message("\nTest-set metrics at ", HORIZON, " days:")
 print(
   metrics[, c("model", "c_index", "auroc_3y", "brier_3y", "calibration_slope")],
@@ -261,7 +271,7 @@ dca_plot <- plot(dca_fit) +
     title = "Decision curve at 3 years, test set",
     subtitle = "Cox model using age, size, nodes, grade, and tamoxifen"
   )
-ggplot2::ggsave("outputs/dca_cox_subset.png", dca_plot, width = 7, height = 5, dpi = 150)
+ggplot2::ggsave(file.path(out_dir, "dca_cox_clinical_subset.png"), dca_plot, width = 7, height = 5, dpi = 150)
 
 # SHAP for the full-record forest.
 # randomForestSRC is not a built-in shapr model, so predict_model returns the
@@ -325,13 +335,13 @@ shap_plot <- ggplot(shap_long, aes(x = shap, y = variable, colour = value_num)) 
   ) +
   theme_minimal(base_size = 12)
 
-ggplot2::ggsave("outputs/shap_rsf_full.png", shap_plot, width = 7, height = 4.5, dpi = 150)
+ggplot2::ggsave(file.path(out_dir, "shap_rsf_full_record.png"), shap_plot, width = 7, height = 4.5, dpi = 150)
 write.csv(
   data.frame(variable = names(mean_abs), mean_abs_shap = unname(mean_abs)),
-  "outputs/shap_importance.csv",
+  file.path(out_dir, "shap_mean_abs.csv"),
   row.names = FALSE
 )
 
-message("\nWrote outputs/metrics.csv")
-message("Wrote outputs/dca_cox_subset.png")
-message("Wrote outputs/shap_rsf_full.png")
+message("\nWrote ", file.path(out_dir, "test_set_metrics.csv"))
+message("Wrote ", file.path(out_dir, "dca_cox_clinical_subset.png"))
+message("Wrote ", file.path(out_dir, "shap_rsf_full_record.png"))

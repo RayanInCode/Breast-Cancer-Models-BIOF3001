@@ -44,12 +44,12 @@ model choice and are exploratory extensions of the already inspected holdout.
 Read the [reliability conclusions](results/survival_comparison/reliability/reliability_summary.md)
 for the results of these checks.
 
-## Cox versus random survival forest
+## Cox versus random survival forest (Abigail Luk)
 
-`scripts/gbsg_cox_rsf.R` compares an unpenalized Cox model with a random survival forest on GBSG2, once with all eight predictors and once with the clinical subset (age, tumour size, nodes, grade, hormonal therapy). The notes, the test-set table, the decision curve, and the SHAP plot are in `results/cox_rsf/`. Run the script from the repository root:
+`scripts/luk_cox_vs_rsf_clinical_subset.R` compares an unpenalized Cox model with a random survival forest on GBSG2, once with all eight predictors and once with the clinical subset (age, tumour size, nodes, grade, hormonal therapy). Notes and saved results are in `results/luk_cox_vs_rsf_clinical_subset/`. From the repository root:
 
 ```bash
-Rscript scripts/gbsg_cox_rsf.R
+Rscript scripts/luk_cox_vs_rsf_clinical_subset.R
 ```
 
-That run writes a new `outputs/` folder in the working directory. The split in `results/cox_rsf/split.csv` is this script's own 80/20 draw of `TH.data::GBSG2`. It is not the patient-id holdout in `results/survival_comparison/patient_split.csv`.
+`thdata_row_split.csv` in that folder is this script's own 80/20 draw of `TH.data::GBSG2`, stored by row number. It is separate from `results/survival_comparison/patient_split.csv`, which is the group holdout stored by patient id.
