@@ -1,13 +1,13 @@
 # Objective
 # Compare Cox proportional hazards with a random survival forest on GBSG2.
-# Each model is fitted twice: once with all eight predictors, and once with
-# the clinical subset. All four fits use the same training patients and are
+# Each model is fitted three times: all eight predictors, the clinical subset,
+# and the baseline subset. All six fits use the same training patients and are
 # scored on the same test patients.
 #
 # Reported on the test set: Harrell's C-index, time-dependent AUROC at 3 years
-# (1095 days), Brier score at 3 years, calibration slope, a decision curve at
-# 3 years for the clinical-subset Cox model, and SHAP values for the
-# full-record forest.
+# (1095 days), Brier score at 3 years, calibration slope, decision curves at
+# 3 years for the two subset Cox models, and SHAP values for the full-record
+# forest.
 #
 # Script owner: Abigail Luk.
 # Coding assistance was used to draft this file. Paste the prompts in
@@ -68,8 +68,19 @@ gbsg$row_id <- seq_len(nrow(gbsg))
 # is also left out of this subset. horTh is the treatment recorded in the
 # trial. It is included here because it is not an assay, not because it is
 # known before the treatment decision.
+# Baseline subset: age, menopausal status, tumour size, grade, and positive
+# nodes. The receptor assays are left out for the same reason as above.
+# Menopausal status is kept because it comes from the history. horTh is left
+# out because it is the treatment assigned in the trial. This set is what is
+# known from the history and the surgical specimen, before that assignment.
 full_vars <- c("age", "menostat", "tsize", "tgrade", "pnodes", "progrec", "estrec", "horTh")
 clinical_vars <- c("age", "tsize", "pnodes", "tgrade", "horTh")
+baseline_vars <- c("age", "menostat", "tsize", "tgrade", "pnodes")
+variable_sets <- list(
+  "full" = full_vars,
+  "clinical subset" = clinical_vars,
+  "baseline subset" = baseline_vars
+)
 
 formula_of <- function(vars) {
   as.formula(paste("Surv(time, cens) ~", paste(vars, collapse = " + ")))
@@ -102,17 +113,17 @@ write.csv(
 # Fitted on the training patients only. pec needs the Cox model frame, so
 # x = TRUE and y = TRUE are stored with the fit. The forest uses 500 trees
 # and the package defaults for the other settings. Its seed is fixed so the
-# trees do not change between runs.
-cox_full <- coxph(formula_of(full_vars), data = train, ties = "efron", x = TRUE, y = TRUE)
-cox_subset <- coxph(formula_of(clinical_vars), data = train, ties = "efron", x = TRUE, y = TRUE)
-
-rsf_full <- rfsrc(
-  formula_of(full_vars), data = train,
-  ntree = NTREE, seed = SEED, importance = FALSE
-)
-rsf_subset <- rfsrc(
-  formula_of(clinical_vars), data = train,
-  ntree = NTREE, seed = SEED, importance = FALSE
+# trees do not change between runs. Full is fitted first, then the clinical
+# subset, then the baseline subset.
+cox_fits <- lapply(variable_sets, function(vars) {
+  coxph(formula_of(vars), data = train, ties = "efron", x = TRUE, y = TRUE)
+})
+rsf_fits <- lapply(variable_sets, function(vars) {
+  rfsrc(formula_of(vars), data = train, ntree = NTREE, seed = SEED, importance = FALSE)
+})
+model_names <- c(
+  paste("Cox,", names(variable_sets)),
+  paste("RSF,", names(variable_sets))
 )
 
 # Survival at day 1095 from the step function: the last recorded time at or
@@ -144,19 +155,17 @@ risk_of <- function(surv) pmin(pmax(1 - surv, 0), 1)
 # Cox: linear predictor. Forest: mortality from randomForestSRC.
 # concordance() otherwise reads a larger value as longer survival, so
 # reverse = TRUE is set when the C-index is calculated.
-rank_score <- list(
-  "Cox, full" = predict(cox_full, newdata = test, type = "lp"),
-  "Cox, clinical subset" = predict(cox_subset, newdata = test, type = "lp"),
-  "RSF, full" = predict(rsf_full, newdata = test)$predicted,
-  "RSF, clinical subset" = predict(rsf_subset, newdata = test)$predicted
-)
+cox_rank <- lapply(cox_fits, function(fit) predict(fit, newdata = test, type = "lp"))
+rsf_rank <- lapply(rsf_fits, function(fit) predict(fit, newdata = test)$predicted)
+names(cox_rank) <- paste("Cox,", names(variable_sets))
+names(rsf_rank) <- paste("RSF,", names(variable_sets))
+rank_score <- c(cox_rank, rsf_rank)
 
-risk_3y <- list(
-  "Cox, full" = risk_of(surv_at_cox(cox_full, test, HORIZON)),
-  "Cox, clinical subset" = risk_of(surv_at_cox(cox_subset, test, HORIZON)),
-  "RSF, full" = risk_of(surv_at_rsf(rsf_full, test, HORIZON)),
-  "RSF, clinical subset" = risk_of(surv_at_rsf(rsf_subset, test, HORIZON))
-)
+cox_risk <- lapply(cox_fits, function(fit) risk_of(surv_at_cox(fit, test, HORIZON)))
+rsf_risk <- lapply(rsf_fits, function(fit) risk_of(surv_at_rsf(fit, test, HORIZON)))
+names(cox_risk) <- paste("Cox,", names(variable_sets))
+names(rsf_risk) <- paste("RSF,", names(variable_sets))
+risk_3y <- c(cox_risk, rsf_risk)
 
 # Harrell's C-index on the test patients.
 c_index_of <- function(risk) {
@@ -176,13 +185,10 @@ auroc_of <- function(risk) {
 # Brier score at day 1095 on the test patients. splitMethod = "none" means
 # pec does not refit the models; it only scores the fits made above.
 # The censoring distribution is the marginal Kaplan-Meier.
+pec_models <- c(cox_fits, rsf_fits)
+names(pec_models) <- model_names
 brier_fit <- pec(
-  object = list(
-    "Cox, full" = cox_full,
-    "Cox, clinical subset" = cox_subset,
-    "RSF, full" = rsf_full,
-    "RSF, clinical subset" = rsf_subset
-  ),
+  object = pec_models,
   formula = Surv(time, cens) ~ 1,
   data = test,
   times = HORIZON,
@@ -222,18 +228,21 @@ rsf_chf <- function(fit, newdata) {
   pred$chf[, idx]
 }
 
-cal <- list(
-  "Cox, full" = calibration_of(rank_score[["Cox, full"]]),
-  "Cox, clinical subset" = calibration_of(rank_score[["Cox, clinical subset"]]),
-  "RSF, full" = calibration_of(rsf_chf(rsf_full, test), rsf_chf(rsf_full, train)),
-  "RSF, clinical subset" = calibration_of(
-    rsf_chf(rsf_subset, test), rsf_chf(rsf_subset, train)
+cal <- list()
+for (nm in names(variable_sets)) {
+  cox_name <- paste("Cox,", nm)
+  rsf_name <- paste("RSF,", nm)
+  cal[[cox_name]] <- calibration_of(rank_score[[cox_name]])
+  cal[[rsf_name]] <- calibration_of(
+    rsf_chf(rsf_fits[[nm]], test),
+    rsf_chf(rsf_fits[[nm]], train)
   )
-)
+}
+cal <- cal[model_names]
 
 metrics <- data.frame(
   model = names(rank_score),
-  variable_set = c("full", "clinical subset", "full", "clinical subset"),
+  variable_set = rep(names(variable_sets), 2),
   n_train = nrow(train),
   n_test = nrow(test),
   events_test = sum(test$cens),
@@ -252,26 +261,41 @@ print(
   digits = 3, row.names = FALSE
 )
 
-# Decision curve at 3 years for the clinical-subset Cox model.
-# cox_subset_risk_3y is already a probability of the event by day 1095.
+# Decision curves at 3 years for the two subset Cox models.
+# The column is already a probability of the event by day 1095.
 # It is not passed through as_probability, because that option would refit
 # a Cox model and would not use this probability.
 # "Treat all" and "Treat none" are added by dca().
-dca_data <- test
-dca_data$cox_subset_risk_3y <- risk_3y[["Cox, clinical subset"]]
-dca_fit <- dca(
-  Surv(time, cens) ~ cox_subset_risk_3y,
-  data = dca_data,
-  time = HORIZON,
-  thresholds = seq(0.05, 0.50, by = 0.01),
-  label = list(cox_subset_risk_3y = "Cox, clinical subset")
-)
-dca_plot <- plot(dca_fit) +
-  ggplot2::labs(
-    title = "Decision curve at 3 years, test set",
-    subtitle = "Cox model using age, size, nodes, grade, and tamoxifen"
+save_dca <- function(risk, label, filename, subtitle) {
+  dca_data <- test
+  dca_data$risk_3y <- risk
+  dca_fit <- dca(
+    Surv(time, cens) ~ risk_3y,
+    data = dca_data,
+    time = HORIZON,
+    thresholds = seq(0.05, 0.50, by = 0.01),
+    label = list(risk_3y = label)
   )
-ggplot2::ggsave(file.path(out_dir, "dca_cox_clinical_subset.png"), dca_plot, width = 7, height = 5, dpi = 150)
+  dca_plot <- plot(dca_fit) +
+    ggplot2::labs(
+      title = "Decision curve at 3 years, test set",
+      subtitle = subtitle
+    )
+  ggplot2::ggsave(file.path(out_dir, filename), dca_plot, width = 7, height = 5, dpi = 150)
+}
+
+save_dca(
+  risk_3y[["Cox, clinical subset"]],
+  "Cox, clinical subset",
+  "dca_cox_clinical_subset.png",
+  "Cox model using age, size, nodes, grade, and tamoxifen"
+)
+save_dca(
+  risk_3y[["Cox, baseline subset"]],
+  "Cox, baseline subset",
+  "dca_cox_baseline_subset.png",
+  "Cox model using age, menopause, size, nodes, and grade"
+)
 
 # SHAP for the full-record forest.
 # randomForestSRC is not a built-in shapr model, so predict_model returns the
@@ -286,10 +310,10 @@ predict_rsf <- function(model, newdata) {
 x_full <- full_vars
 set.seed(SEED)
 explain_rows <- sample(seq_len(nrow(test)), size = min(40, nrow(test)))
-phi0 <- mean(predict_rsf(rsf_full, train[, x_full]))
+phi0 <- mean(predict_rsf(rsf_fits[["full"]], train[, x_full]))
 
 shap_fit <- explain(
-  model = rsf_full,
+  model = rsf_fits[["full"]],
   x_explain = test[explain_rows, x_full],
   x_train = train[, x_full],
   approach = "independence",
@@ -344,4 +368,5 @@ write.csv(
 
 message("\nWrote ", file.path(out_dir, "test_set_metrics.csv"))
 message("Wrote ", file.path(out_dir, "dca_cox_clinical_subset.png"))
+message("Wrote ", file.path(out_dir, "dca_cox_baseline_subset.png"))
 message("Wrote ", file.path(out_dir, "shap_rsf_full_record.png"))

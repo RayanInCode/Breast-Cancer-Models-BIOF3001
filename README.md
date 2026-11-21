@@ -46,7 +46,7 @@ for the results of these checks.
 
 ## Cox versus random survival forest (Abigail Luk)
 
-`scripts/luk_cox_vs_rsf_clinical_subset.R` compares an unpenalized Cox model with a random survival forest on GBSG2, once with all eight predictors and once with the clinical subset (age, tumour size, nodes, grade, hormonal therapy). Notes and saved results are in `results/luk_cox_vs_rsf_clinical_subset/`. From the repository root:
+`scripts/luk_cox_vs_rsf_clinical_subset.R` compares an unpenalized Cox model with a random survival forest on GBSG2, on all eight predictors, on the clinical subset (age, tumour size, nodes, grade, hormonal therapy), and on the baseline subset (age, menopause, tumour size, nodes, grade). Notes and saved results are in `results/luk_cox_vs_rsf_clinical_subset/`. From the repository root:
 
 ```bash
 Rscript scripts/luk_cox_vs_rsf_clinical_subset.R
