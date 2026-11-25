@@ -23,10 +23,19 @@ Methods, references and limitations are documented in the notebook.
 
 ## Cox versus random survival forest (Abigail Luk)
 
-`scripts/luk_cox_vs_rsf_clinical_subset.R` compares an unpenalized Cox model with a random survival forest on GBSG2, on all eight predictors, on the clinical subset (age, tumour size, nodes, grade, hormonal therapy), and on the baseline subset (age, menopause, tumour size, nodes, grade). Notes and saved results are in `results/luk_cox_vs_rsf_clinical_subset/`. From the repository root:
+Compares an unpenalised Cox model with a random survival forest on GBSG2
+(686 patients): the full record, a clinical subset, and a baseline subset.
+
+- [Script](scripts/luk_cox_vs_rsf_clinical_subset.R) · [Notes](results/luk_cox_vs_rsf_clinical_subset/NOTES.md)
+- [All outputs](results/luk_cox_vs_rsf_clinical_subset/): test-set metrics, the row-number split, decision curves and SHAP.
+- Code added for this comparison is that script only. The notebooks in `scripts/` and everything under `results/survival_comparison/` were already in the repository.
+
+To rerun from the repository root, with R 4.5:
 
 ```bash
 Rscript scripts/luk_cox_vs_rsf_clinical_subset.R
 ```
 
-`thdata_row_split.csv` in that folder is this script's own 80/20 draw of `TH.data::GBSG2`, stored by row number. It is separate from `results/survival_comparison/patient_split.csv`, which is the group holdout stored by patient id.
+The script writes back into `results/luk_cox_vs_rsf_clinical_subset/`.
+`thdata_row_split.csv` is this script's own 80/20 draw of `TH.data::GBSG2`.
+It is separate from `results/survival_comparison/patient_split.csv`.
