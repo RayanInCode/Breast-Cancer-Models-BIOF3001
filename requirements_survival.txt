@@ -1,0 +1,20 @@
+# Python 3.12; exact execution versions are recorded in requirements_survival_lock.txt.
+numpy==1.26.4
+pandas==2.2.3
+scipy==1.13.1
+scikit-learn==1.7.2
+scikit-survival==0.25.0
+xgboost==3.0.2
+lifelines==0.30.0
+dcurves==1.1.7
+matplotlib==3.9.2
+joblib==1.4.2
+nbformat==5.10.4
+nbclient==0.8.0
+nbconvert==7.16.6
+ipykernel==6.28.0
+statsmodels==0.14.5
+shap==0.48.0
+torch==2.5.1
+pycox==0.3.0
+torchtuples==0.2.2
